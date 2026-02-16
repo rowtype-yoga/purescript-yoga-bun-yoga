@@ -2,6 +2,8 @@ module Yoga.Bun.HTTP where
 
 import Prelude
 
+import Data.Maybe (Maybe)
+import Data.Nullable (Nullable, toMaybe)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Uncurried (EffectFn1, EffectFn2, mkEffectFn1, runEffectFn1, runEffectFn2)
@@ -10,14 +12,17 @@ import Foreign.Object (Object)
 import Prim.Row (class Union)
 import Promise (Promise)
 import Promise.Aff (toAffE, fromAff) as Promise
+import Unsafe.Coerce (unsafeCoerce)
 import Web.Fetch.Request (Request)
 import Web.Fetch.Response (Response)
 
-type BunServerImpl = { stop :: EffectFn1 Boolean (Promise Unit), upgrade :: EffectFn1 Request Boolean }
+foreign import data BunWebSocket :: Type
+
+type BunServerImpl = { stopForce :: Effect (Promise Unit), stopGraceful :: Effect (Promise Unit), upgrade :: EffectFn1 Request Boolean, port :: Int }
 
 data CloseActiveConnections = WaitForOpenConnections | ForceTerminateAllOpenConnections
 
-type BunServer = { stop :: CloseActiveConnections -> Aff Unit, upgrade :: Request -> Effect Boolean }
+type BunServer = { stop :: CloseActiveConnections -> Aff Unit, upgrade :: Request -> Effect Boolean, port :: Int }
 
 foreign import serveImpl :: forall options. EffectFn1 options BunServerImpl
 
@@ -36,10 +41,11 @@ serve :: forall opts opts_. Union opts opts_ BunServeOptionsImpl => { fetch :: E
 serve opts = do
   serverImpl <- runEffectFn1 serveImpl opts
   pure
-    { stop: \closeActiveConnections -> case closeActiveConnections of
-        WaitForOpenConnections -> runEffectFn1 serverImpl.stop true # Promise.toAffE
-        ForceTerminateAllOpenConnections -> runEffectFn1 serverImpl.stop false # Promise.toAffE
+    { stop: case _ of
+        WaitForOpenConnections -> serverImpl.stopGraceful # Promise.toAffE
+        ForceTerminateAllOpenConnections -> serverImpl.stopForce # Promise.toAffE
     , upgrade: runEffectFn1 serverImpl.upgrade
+    , port: serverImpl.port
     }
 
 mkFetch :: (Request -> Aff Response) -> EffectFn1 Request (Promise Response)
@@ -89,3 +95,28 @@ foreign import cloneResponseImpl :: Response -> Effect Response
 
 cloneResponse :: Response -> Effect Response
 cloneResponse = cloneResponseImpl
+
+foreign import wsDataImpl :: EffectFn1 BunWebSocket Foreign
+foreign import setWsDataImpl :: EffectFn2 BunWebSocket Foreign Unit
+
+wsData :: BunWebSocket -> Effect Foreign
+wsData = runEffectFn1 wsDataImpl
+
+setWsData :: BunWebSocket -> Foreign -> Effect Unit
+setWsData = runEffectFn2 setWsDataImpl
+
+-- Request accessors (pure property reads on the opaque Request type)
+
+requestMethod :: Request -> String
+requestMethod req = (unsafeCoerce req).method
+
+requestUrl :: Request -> String
+requestUrl req = (unsafeCoerce req).url
+
+requestSearchParam :: Request -> String -> Maybe String
+requestSearchParam req name = do
+  let result :: Nullable String
+      result = searchParamImpl (requestUrl req) name
+  toMaybe result
+
+foreign import searchParamImpl :: String -> String -> Nullable String

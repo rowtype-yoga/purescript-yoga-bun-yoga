@@ -1,10 +1,15 @@
 export const serveImpl = (options) => {
   const server = Bun.serve(options);
   return {
-    stop: (close) => server.stop(close),
-    upgrade: (req) => () => server.upgrade(req)
+    stopForce: () => server.stop(true),
+    stopGraceful: () => server.stop(false),
+    upgrade: (req) => () => server.upgrade(req),
+    port: server.port
   };
 };
+
+export const wsDataImpl = (ws) => ws.data;
+export const setWsDataImpl = (ws, data) => { ws.data = data; };
 
 // String/text Response
 export const stringResponseImpl = (body, stuff) => new Response(body, stuff);
@@ -25,3 +30,6 @@ export const responseErrorImpl = () => Response.error();
 
 // Response cloning
 export const cloneResponseImpl = (response) => response.clone();
+
+// URL search param (pure: URL constructor + searchParams.get)
+export const searchParamImpl = (url) => (name) => new URL(url).searchParams.get(name);
