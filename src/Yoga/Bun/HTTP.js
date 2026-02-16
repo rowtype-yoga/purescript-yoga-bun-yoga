@@ -1,4 +1,10 @@
-export const serveImpl = (options) => Bun.serve(options);
+export const serveImpl = (options) => {
+  const server = Bun.serve(options);
+  return {
+    stop: (close) => server.stop(close),
+    upgrade: (req) => () => server.upgrade(req)
+  };
+};
 
 // String/text Response
 export const stringResponseImpl = (body, stuff) => new Response(body, stuff);

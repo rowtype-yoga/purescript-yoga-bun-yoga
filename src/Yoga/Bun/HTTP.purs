@@ -13,15 +13,24 @@ import Promise.Aff (toAffE, fromAff) as Promise
 import Web.Fetch.Request (Request)
 import Web.Fetch.Response (Response)
 
-type BunServerImpl = { stop :: EffectFn1 Boolean (Promise Unit) }
+type BunServerImpl = { stop :: EffectFn1 Boolean (Promise Unit), upgrade :: EffectFn1 Request Boolean }
 
 data CloseActiveConnections = WaitForOpenConnections | ForceTerminateAllOpenConnections
 
-type BunServer = { stop :: CloseActiveConnections -> Aff Unit }
+type BunServer = { stop :: CloseActiveConnections -> Aff Unit, upgrade :: Request -> Effect Boolean }
 
 foreign import serveImpl :: forall options. EffectFn1 options BunServerImpl
 
-type BunServeOptionsImpl = (fetch :: EffectFn1 Request (Promise Response), port :: Int, host :: String)
+type BunServeOptionsImpl =
+  ( fetch :: EffectFn1 Request (Promise Response)
+  , port :: Int
+  , host :: String
+  , websocket ::
+      { open :: EffectFn1 Foreign Unit
+      , message :: EffectFn2 Foreign Foreign Unit
+      , close :: EffectFn2 Foreign Foreign Unit
+      }
+  )
 
 serve :: forall opts opts_. Union opts opts_ BunServeOptionsImpl => { fetch :: EffectFn1 Request (Promise Response) | opts } -> Effect BunServer
 serve opts = do
@@ -30,6 +39,7 @@ serve opts = do
     { stop: \closeActiveConnections -> case closeActiveConnections of
         WaitForOpenConnections -> runEffectFn1 serverImpl.stop true # Promise.toAffE
         ForceTerminateAllOpenConnections -> runEffectFn1 serverImpl.stop false # Promise.toAffE
+    , upgrade: runEffectFn1 serverImpl.upgrade
     }
 
 mkFetch :: (Request -> Aff Response) -> EffectFn1 Request (Promise Response)
