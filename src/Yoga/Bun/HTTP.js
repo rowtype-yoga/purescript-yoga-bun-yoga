@@ -33,3 +33,9 @@ export const cloneResponseImpl = (response) => response.clone();
 
 // URL search param (pure: URL constructor + searchParams.get)
 export const searchParamImpl = (url) => (name) => new URL(url).searchParams.get(name);
+
+// Request header (method call, needs .bind or direct call)
+export const requestHeaderImpl = (req) => (name) => req.headers.get(name);
+
+// Request body as text (returns Promise)
+export const requestTextImpl = (req) => req.text();

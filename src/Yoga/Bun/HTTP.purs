@@ -6,12 +6,13 @@ import Data.Maybe (Maybe)
 import Data.Nullable (Nullable, toMaybe)
 import Effect (Effect)
 import Effect.Aff (Aff)
+import Effect.Class (liftEffect)
 import Effect.Uncurried (EffectFn1, EffectFn2, mkEffectFn1, runEffectFn1, runEffectFn2)
 import Foreign (Foreign)
 import Foreign.Object (Object)
 import Prim.Row (class Union)
 import Promise (Promise)
-import Promise.Aff (toAffE, fromAff) as Promise
+import Promise.Aff (toAff, toAffE, fromAff) as Promise
 import Unsafe.Coerce (unsafeCoerce)
 import Web.Fetch.Request (Request)
 import Web.Fetch.Response (Response)
@@ -120,3 +121,15 @@ requestSearchParam req name = do
   toMaybe result
 
 foreign import searchParamImpl :: String -> String -> Nullable String
+
+foreign import requestHeaderImpl :: Request -> String -> Nullable String
+
+requestHeader :: Request -> String -> Maybe String
+requestHeader req name = toMaybe (requestHeaderImpl req name)
+
+foreign import requestTextImpl :: Request -> Effect (Promise String)
+
+requestText :: Request -> Aff String
+requestText req = do
+  promise <- requestTextImpl req # liftEffect
+  Promise.toAff promise
