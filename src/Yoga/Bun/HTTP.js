@@ -37,5 +37,5 @@ export const searchParamImpl = (url) => (name) => new URL(url).searchParams.get(
 // Request header (method call, needs .bind or direct call)
 export const requestHeaderImpl = (req) => (name) => req.headers.get(name);
 
-// Request body as text (returns Promise)
-export const requestTextImpl = (req) => req.text();
+// Request body as text (returns Promise wrapped in Effect thunk)
+export const requestTextImpl = (req) => () => req.text();
